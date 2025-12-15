@@ -1,5 +1,5 @@
 impl<E:Default,S:AsRef<Path>> LoadSheet<S> for Tensor<E> where Tensor<E>:for<'a> ReadSheet<&'a Path>{
-	fn load_sheet(sheetpath:S)->Self{Self::from_sheet(sheetpath.as_ref())}
+	fn load_sheet(sheetpath:S)->IOResult<Self>{Self::from_sheet(sheetpath.as_ref())}
 }
 impl<E:Default> From<Spreadsheet> for Tensor<E> where Tensor<E>:ReadSheet<Spreadsheet>{
 	fn from(sheet:Spreadsheet)->Tensor<E>{Self::from_sheet(sheet)}
@@ -132,6 +132,100 @@ impl ReadSheet<&Worksheet> for Tensor<f64>{
 		}
 	}
 }
+#[cfg(test)]
+mod tests{
+	#[cfg(feature="match-tensor")]
+	#[test]
+	fn match_matrix(){
+		use crate::match_tensor;
+
+		let expected=vec![80.0,80.0,80.0,75.0,75.0,70.0,70.0,65.0,70.0,65.0];
+		let matrixfile="Matrix November 10th FINAL.xlsx";
+		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile).unwrap();
+
+		assert!(numbers[[0,0,0]].is_nan());
+		assert!(numbers[[0,0,1]].is_nan());
+		assert!(numbers[[0,1,0]].is_nan());
+
+		let mut query:Tensor<f32>=vec![70.0;expected.len()].into();
+		assert!(query.reshape([1,2,5]));
+
+		let offsetcandidates=numbers.indices().filter(|ix|ix[0]==1&&ix[1]<4&&ix[2]<4);
+		let (value, cost)=match_tensor::absorb_data(&numbers,|x0,x1|x0.iter().zip(x1.iter()).map(|(x0,x1)|(x0-x1) as f32).map(|x|x*x).sum::<f32>().sqrt(),offsetcandidates,|a:&f32,b:&f32|{
+			if a.is_nan()&&b.is_nan(){0.0}else if a.is_nan()||b.is_nan(){100.0}else{(a-b).abs()}
+		},query.view()).unwrap();
+
+		assert_eq!(value.view().swap_dims(-1,-2).flat_vec(None),expected);
+		assert_eq!(cost,expected.into_iter().map(|e|(e-70.0).abs()).sum::<f32>());
+	}
+	#[cfg(feature="match-tensor")]
+	#[test]
+	fn find_table(){
+
+		let expected=vec![
+			"Single Investment Property",	"",						"",			"",						"",
+			"Maximum LTV/CLTV",				"",						">= 1.00",	"",						"",
+			"Minimum Credit Score",			"Maximum Loan Amount",	"Purchase",	"Rate/Term Refinance",	"Cash-Out Refinance",
+			"700",							"1000000",				"80",		"80",					"80*",
+			"",								"1500000",				"80",		"75",					"75",
+			"",								"2000000",				"75",		"70",					"70",
+			"",								"3000000",				"70",		"65",					"65",
+			"",								"3500000",				"70",		"65",					"NA",
+			"680",							"1000000",				"75",		"75",					"75",
+			"",								"1500000",				"75",		"75",					"75",
+			"",								"2000000",				"75",		"75",					"75",
+			"",								"2500000",				"70",		"65",					"65",
+			"",								"3000000",				"65",		"NA",					"NA",
+			"640",							"1000000",				"75",		"70",					"70",
+			"",								"1500000",				"70",		"70",					"70",
+			"",								"2000000",				"65",		"NA",					"NA",
+			"",								"3000000",				"60",		"NA",					"NA",
+		];
+		let matrixfile="Matrix November 10th FINAL.xlsx";
+		let pattern=vec![
+			CellPattern::Text("Single Investment Property".into()),CellPattern::Anything,CellPattern::Anything,CellPattern::Anything,CellPattern::Anything,
+			CellPattern::Text("Maximum LTV".into()),CellPattern::Anything,CellPattern::Text(">=1.0".into()),CellPattern::Anything,CellPattern::Anything,
+			CellPattern::Text("Minimum credit score".into()),CellPattern::Text("Maximum Loan Amount".into()),CellPattern::Text("Purchase".into()),CellPattern::Text("Rate/Term Refinance".into()),CellPattern::Text("Cash-Out Refinance".into()),
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
+		];
+
+		let data:Tensor<String>=Tensor::load_sheet(matrixfile).unwrap();
+		let mut pattern:Tensor<CellPattern>=Tensor::from(pattern);
+
+		assert!(pattern.reshape([17,5]));
+		assert!(pattern.swap_dims(0,1));
+
+		let (table, cost)=absorb_table_default(data,pattern);
+
+		assert_eq!(table.view().swap_dims(-1,-2).flat_vec(None),expected);
+	}
+	#[test]
+	fn read_matrix(){
+		let matrixfile="Matrix November 10th FINAL.xlsx";
+		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile).unwrap();
+		let text:Tensor<String>=Tensor::load_sheet(matrixfile).unwrap();
+
+		assert!(numbers[[0,0,0]].is_nan());
+		assert!(numbers[[0,0,1]].is_nan());
+		assert!(numbers[[0,1,0]].is_nan());
+		assert_eq!(numbers[[1..2,2..4,3..8].as_slice()].swap_dims(-1,-2).flat_vec(None),vec![80.0,80.0,80.0,75.0,75.0,70.0,70.0,65.0,70.0,65.0]);
+		assert_eq!(text[[0,0,1]],"test");
+	}
+	use super::*;
+}
 #[cfg(feature="match-tensor")]
 #[derive(Clone,Debug,Default,PartialEq)]
 #[cfg(feature="match-tensor")]
@@ -175,7 +269,7 @@ pub fn absorb_table_default(data:impl AsRef<View<String>>,pattern:impl AsRef<Vie
 /// provide function for loading spreadsheet to tensor by path refs
 pub trait LoadSheet<S>{
 	/// loads a tensor from the spreadsheet file
-	fn load_sheet(sheetpath:S)->Self;
+	fn load_sheet(sheetpath:S)->IOResult<Self>;
 }
 /// how to read the columns of a spreadsheet into a tensor
 pub trait ReadSheet<S>{
@@ -196,7 +290,7 @@ use crate::builtin_tensor::Tensor;
 use crate::{
 	builtin_tensor::{GridIter,View},match_tensor
 };
-use std::path::Path;
+use std::{io::Result as IOResult,path::Path};
 #[cfg(feature="match-tensor")]
 use std::sync::OnceLock;
 use umya_spreadsheet::{Cell,Spreadsheet,Worksheet,reader::xlsx};
