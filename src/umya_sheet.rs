@@ -170,11 +170,11 @@ mod tests{
 		assert!(query.reshape([1,2,5]));
 
 		let offsetcandidates=numbers.indices().filter(|ix|ix[0]==1&&ix[1]<4&&ix[2]<4);
-		let (value, cost)=match_tensor::absorb_data(&numbers,|x0,x1|x0.iter().zip(x1.iter()).map(|(x0,x1)|(x0-x1) as f32).map(|x|x*x).sum::<f32>().sqrt(),offsetcandidates,|a:&f32,b:&f32|{
+		let (value, cost)=match_tensor::grab_table(&numbers,offsetcandidates,|a:&f32,b:&f32|{
 			if a.is_nan()&&b.is_nan(){0.0}else if a.is_nan()||b.is_nan(){100.0}else{(a-b).abs()}
 		},query.view()).unwrap();
 
-		assert_eq!(value.view().swap_dims(-1,-2).flat_vec(None),expected);
+		assert_eq!(value.swap_dims(-1,-2).flat_vec(None),expected);
 		assert_eq!(cost,expected.into_iter().map(|e|(e-70.0).abs()).sum::<f32>());
 	}
 	#[cfg(feature="match-tensor")]
@@ -221,13 +221,14 @@ mod tests{
 			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
 		];
 
-		let data:Tensor<String>=Tensor::load_sheet(matrixfile);
+		let mut data:Tensor<String>=Tensor::load_sheet(matrixfile);
 		let mut pattern:Tensor<CellPattern>=Tensor::from(pattern);
 
+		assert!(data.slice(&[0..3,0..5,0..30]));
 		assert!(pattern.reshape([17,5]));
 		assert!(pattern.swap_dims(0,1));
 
-		let (table, cost)=absorb_table_default(data,pattern);
+		let (table, _cost)=grab_table_default(data,pattern);
 
 		assert_eq!(table.view().swap_dims(-1,-2).flat_vec(None),expected);
 	}
@@ -268,7 +269,7 @@ pub enum CellPattern{
 }
 #[cfg(feature="match-tensor")]
 /// fuzzy finds a table based on the cell pattern
-pub fn absorb_table(data:impl AsRef<View<String>>,boolscale:f32,diffscale:f32,distscale:f32,levscale:f32,parsescale:f32,pattern:impl AsRef<View<CellPattern>>)->(Tensor<String>,f32){
+pub fn grab_table(data:impl AsRef<View<String>>,boolscale:f32,diffscale:f32,levscale:f32,parsescale:f32,pattern:impl AsRef<View<CellPattern>>)->(Tensor<String>,f32){
 	let (data,mut pattern)=(data.as_ref(),pattern.as_ref());
 
 	assert!(data.rank()>=pattern.rank());
@@ -280,11 +281,11 @@ pub fn absorb_table(data:impl AsRef<View<String>>,boolscale:f32,diffscale:f32,di
 	datadims.iter().zip(patterndims.iter()).zip(stopposition.iter_mut()).for_each(|((d,p),s)|*s=d.checked_sub(*p).unwrap()+1);
 	let offsetcandidates=GridIter::new(stopposition);
 
-	match_tensor::absorb_data(data,|p,q|match_tensor::euclidean(p,q)*distscale,offsetcandidates,|d,p|p.diff_lev_transform_cost(boolscale,diffscale,levscale,parsescale,d),pattern).unwrap()
+	match_tensor::grab_table(data,offsetcandidates,|d,p|p.diff_lev_transform_cost(boolscale,diffscale,levscale,parsescale,d),pattern).map(|(t, c)|(t.to_tensor(), c)).unwrap()
 }
 #[cfg(feature="match-tensor")]
 /// fuzzy finds a table based on the cell pattern
-pub fn absorb_table_default(data:impl AsRef<View<String>>,pattern:impl AsRef<View<CellPattern>>)->(Tensor<String>,f32){absorb_table(data,1.0,1.0,5.1,1.0,5.0,pattern)}
+pub fn grab_table_default(data:impl AsRef<View<String>>,pattern:impl AsRef<View<CellPattern>>)->(Tensor<String>,f32){grab_table(data,1.0,1.0,1.0,5.0,pattern)}
 /// provide function for loading spreadsheet to tensor by path refs
 pub trait LoadSheet<S>{
 	/// loads a tensor from the spreadsheet file

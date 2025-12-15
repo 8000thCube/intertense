@@ -18,6 +18,24 @@ mod tests{
 
 		assert_eq!((cost,value.flat_vec(None)),(0.1,vec![0.1,0.4,0.2,0.4]));
 	}
+	#[test]
+	fn fill_holes_00(){
+		let mut data:Tensor<f32>=vec![
+			0.5,0.0,0.5,0.4,0.1,
+			0.0,0.1,0.0,0.4,0.2,
+			0.0,0.0,0.4,0.0,0.3,
+		].into();
+		let filled=vec![
+			0.5,0.0,0.5,0.4,0.1,
+			0.5,0.1,0.5,0.4,0.2,
+			0.5,0.1,0.4,0.4,0.3,
+		];
+
+		assert!(data.reshape([3,5]));
+		fill_holes(data.view_mut(),0,|&x|x,|&x|x==0.0);
+
+		assert_eq!(data.flat_vec(None),filled);
+	}
 
 	use super::*;
 }
@@ -47,12 +65,12 @@ pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Posit
 			let cost=query.get(qx.as_unsigned()).map(|q|transformcost(e,q)).unwrap_or(f32::INFINITY);
 			(ix, cost)
 		});
-		/*propagate_cost(&mut acc,|ix,jx|{
+		propagate_cost(&mut acc,|ix,jx|{
 			qx.clone_from(&ix);
 			qx-=&offset;
 
 			query.get(qx.as_unsigned()).map(|q|movecost(&jx,&ix)+transformcost(&data[jx],q)).unwrap_or(f32::INFINITY)
-		});*/
+		});
 
 		assert!(acc.slice(&sx),"{sx:?}");
 
@@ -83,12 +101,13 @@ pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Optio
 }
 /// fills holes in the data using data from the left. holes with no left non holes will remain
 pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isize,mut fill_hole:F,mut is_hole:G){
-	let data=data.swap_dims_mut(dim,0);
+	let data=data.swap_dims_mut(dim,-1);
+	let l=data.rank();
 	let mut left=Position::new(0);
 
 	for ix in data.indices(){
 		if is_hole(&data[&ix]){
-			if left.len()>0&&left[1..]==ix[1..]{data[&ix]=fill_hole(&data[&left])}
+			if left.len()>0&&left[..l-1]==ix[..l-1]{data[&ix]=fill_hole(&data[&left])}
 		}
 		left.clone_from(&ix);
 	}
@@ -112,6 +131,32 @@ pub fn floor_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Opti
 	}
 
 	candidate
+}
+/// grab lowest cost table with respect to the query from those inhabiting data slices from offsetcandidates with query dims. allowing the offset query to extend beyond the bounds of data is not supported; pad first if this is desired
+pub fn grab_table<'a,E,I:IntoIterator<Item=Position>,T:FnMut(&E,&X)->f32,X>(data:&'a View<E>,offsetcandidates:I,mut transform_cost:T,mut query:&View<X>)->Option<(&'a View<E>,f32)>{
+	assert!(data.rank()>=query.rank());
+	while data.rank()>query.rank(){query=query.unsqueeze_dim(0)}
+
+	let mut ix=Position::new(0);
+	let mut result:Option<(Position,f32)>=None;
+
+	for offset in offsetcandidates{
+		let cost=query.indices().fold(0.0,|acc,qx|{
+			ix.clone_from(&offset);
+			ix+=&qx;
+
+			acc+transform_cost(&data[&ix],&query[qx])
+		});
+
+		if result.as_ref().map(|(_bestoffset, bestcost)|*bestcost>cost).unwrap_or(true){result=Some((offset.clone(), cost))}
+	}
+	result.map(|(offset, cost)|{
+		let sx:Vec<Range<isize>>=offset.iter().zip(query.dims().iter())
+			.map(|(&ix,&qd)|ix..ix+qd as isize)
+			.collect();
+
+		(&data[sx.as_slice()],cost)
+	})
 }
 /// euclidean distance move cost TODO make this trait based so it works for tensors
 pub fn euclidean(p:&Position,q:&Position)->f32{p.iter().zip(q.iter()).map(|(p,q)|(p-q) as f32).map(|x|x*x).sum::<f32>().sqrt()}
@@ -170,4 +215,4 @@ pub fn propagate_cost<F:FnMut(&Position,&Position)->f32>(acc:&mut View<(Position
 	}
 }
 use crate::builtin_tensor::{GridIter,Position,Tensor,View};
-use std::{cmp::PartialOrd,iter::FilterMap};
+use std::{cmp::PartialOrd,iter::FilterMap,ops::Range};
