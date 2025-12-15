@@ -21,50 +21,6 @@ mod tests{
 
 	use super::*;
 }
-/// fills holes in the data using data from the left. holes with no left non holes will remain
-pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isize,mut fill_hole:F,mut is_hole:G){
-	let data=data.swap_dims_mut(dim,-1);
-	let mut left=Position::new(0);
-
-	for ix in data.indices(){
-		if is_hole(&data[&ix]){
-			if left.len()>0&&left[0]==ix[0]{data[&ix]=fill_hole(&data[&left])}
-		}else{
-			left.clone_from(&ix);
-		}
-	}
-}
-/// fuzzy equality based on which components match according to a predicate. broadcasting and rank promotion are performed, but not padding. dim mismatch after broadcasting and rank promotion will cause a result of false
-pub fn match_eq<'a,E,F:'a+FnMut(&E,&X)->bool,X>(mut e:&'a View<E>,mut f:F,mut x:&'a View<X>)->bool{
-	if e.dims().iter().rev().zip(x.dims().iter().rev()).any(|(&d,&x)|d!=x&&d!=1&&x!=1){return false}
-
-	while e.rank()<x.rank(){e=e.unsqueeze_dim(0)}
-	while e.rank()>x.rank(){x=x.unsqueeze_dim(0)}
-
-	let (edims,xdims)=(e.dims(),x.dims());
-	for n in 0..edims.len(){
-		if edims[n]==1{e=e.broadcast_dim(n as isize,xdims[n])}
-		if xdims[n]==1{x=x.broadcast_dim(n as isize,edims[n])}
-	}
-
-	e.indices().all(|ix|f(&e[&ix],&x[&ix]))
-}
-/// finds which indices match according to the predicate. broadcasting, padding, and rank promotion are performed // TODO those could be optional
-pub fn matches<'a,E,F:'a+FnMut(&E,&X)->bool,X>(mut e:&'a View<E>,mut f:F,mut x:&'a View<X>)->FilterMap<GridIter,impl 'a+FnMut(Position)->Option<Position>>{
-	while e.rank()<x.rank(){e=e.unsqueeze_dim(0)}
-	while e.rank()>x.rank(){x=x.unsqueeze_dim(0)}
-
-	let (edims,xdims)=(e.dims(),x.dims());
-	for n in 0..edims.len(){
-		if edims[n]==1{e=e.broadcast_dim(n as isize,xdims[n])}
-		if xdims[n]==1{x=x.broadcast_dim(n as isize,edims[n])}
-	}
-
-	let mut dims=edims.to_vec();
-	for n in 0..edims.len(){dims[n]=dims[n].max(xdims[n])}
-
-	GridIter::new(dims).filter_map(move|ix|f(e.get(&ix)?,x.get(&ix)?).then_some(ix))
-}
 /// find the lowest cost offset from the candidates and extract the corresponding components from the data. returns none if length of offsetcandidates is 0. having any offset candidates that put any of query outside of data is currently not supported. data will have to be padded first if that is desired
 pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Position>,T:FnMut(&E,&X)->f32,X>(data:&View<E>,mut movecost:F,offsetcandidates:I,mut transformcost:T,query:&View<X>)->Option<(Tensor<E>,f32)> where E:Clone{
 	let mut qx=Position::new(0);
@@ -105,6 +61,92 @@ pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Posit
 	}
 	result.map(|(a,c)|(a.map(|(position,_cost)|data[position].clone()),c))
 }
+/// find the lowest element greater than x
+pub fn ceil<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{
+	let mut candidate=None;
+	for ix in e.indices(){
+		let e=&e[ix];
+		if e>x&&candidate.map(|c|c>e).unwrap_or(true){candidate=Some(e)}
+	}
+
+	candidate
+}
+/// find the lowest element greater than x
+pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
+	let mut candidate=None;
+	for ix in e.indices(){
+		let e=&e[&ix];
+		if e>x&&candidate.as_ref().map(|(c,_ix)|*c>e).unwrap_or(true){candidate=Some((e,ix))}
+	}
+
+	candidate
+}
+/// fills holes in the data using data from the left. holes with no left non holes will remain
+pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isize,mut fill_hole:F,mut is_hole:G){
+	let data=data.swap_dims_mut(dim,-1);
+	let mut left=Position::new(0);
+
+	for ix in data.indices(){
+		if is_hole(&data[&ix]){
+			if left.len()>0&&left[0]==ix[0]{data[&ix]=fill_hole(&data[&left])}
+		}else{
+			left.clone_from(&ix);
+		}
+	}
+}
+/// find the highest element less than x
+pub fn floor<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{
+	let mut candidate=None;
+	for ix in e.indices(){
+		let e=&e[ix];
+		if e<x&&candidate.map(|c|c<e).unwrap_or(true){candidate=Some(e)}
+	}
+
+	candidate
+}
+/// find the highest element less than x
+pub fn floor_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
+	let mut candidate=None;
+	for ix in e.indices(){
+		let e=&e[&ix];
+		if e<x&&candidate.as_ref().map(|(c,_ix)|*c<e).unwrap_or(true){candidate=Some((e,ix))}
+	}
+
+	candidate
+}
+/// euclidean distance move cost TODO make this trait based so it works for tensors
+pub fn euclidean(p:&Position,q:&Position)->f32{p.iter().zip(q.iter()).map(|(p,q)|(p-q) as f32).map(|x|x*x).sum::<f32>().sqrt()}
+/// fuzzy equality based on which components match according to a predicate. broadcasting and rank promotion are performed, but not padding. dim mismatch after broadcasting and rank promotion will cause a result of false
+pub fn match_eq<E,F:FnMut(&E,&X)->bool,X>(mut e:&View<E>,mut f:F,mut x:&View<X>)->bool{
+	if e.dims().iter().rev().zip(x.dims().iter().rev()).any(|(&d,&x)|d!=x&&d!=1&&x!=1){return false}
+
+	while e.rank()<x.rank(){e=e.unsqueeze_dim(0)}
+	while e.rank()>x.rank(){x=x.unsqueeze_dim(0)}
+
+	let (edims,xdims)=(e.dims(),x.dims());
+	for n in 0..edims.len(){
+		if edims[n]==1{e=e.broadcast_dim(n as isize,xdims[n])}
+		if xdims[n]==1{x=x.broadcast_dim(n as isize,edims[n])}
+	}
+
+	e.indices().all(|ix|f(&e[&ix],&x[&ix]))
+}
+/// finds which indices match according to the predicate. broadcasting, padding, and rank promotion are performed // TODO those could be optional
+pub fn matches<'a,E,F:'a+FnMut(&E,&X)->bool,X>(mut e:&'a View<E>,mut f:F,mut x:&'a View<X>)->FilterMap<GridIter,impl 'a+FnMut(Position)->Option<Position>>{
+	while e.rank()<x.rank(){e=e.unsqueeze_dim(0)}
+	while e.rank()>x.rank(){x=x.unsqueeze_dim(0)}
+
+	let (edims,xdims)=(e.dims(),x.dims());
+	for n in 0..edims.len(){
+		if edims[n]==1{e=e.broadcast_dim(n as isize,xdims[n])}
+		if xdims[n]==1{x=x.broadcast_dim(n as isize,edims[n])}
+	}
+
+	let mut dims=edims.to_vec();
+	for n in 0..edims.len(){dims[n]=dims[n].max(xdims[n])}
+
+	GridIter::new(dims).filter_map(move|ix|f(e.get(&ix)?,x.get(&ix)?).then_some(ix))
+}
 /// propagate movement costs // TODO wrap args?
 pub fn propagate_cost<F:FnMut(&Position,&Position)->f32>(acc:&mut View<(Position,f32)>,mut cost:F){
 	let mut adjacent=Position::new(acc.rank());
@@ -129,4 +171,4 @@ pub fn propagate_cost<F:FnMut(&Position,&Position)->f32>(acc:&mut View<(Position
 	}
 }
 use crate::builtin_tensor::{GridIter,Position,Tensor,View};
-use std::iter::FilterMap;
+use std::{cmp::PartialOrd,iter::FilterMap};
