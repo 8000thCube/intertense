@@ -21,7 +21,7 @@ mod tests{
 
 	use super::*;
 }
-/// find the lowest cost offset from the candidates and extract the corresponding components from the data. returns none if length of offsetcandidates is 0. having any offset candidates that put any of query outside of data is currently not supported. data will have to be padded first if that is desired
+/// TODO might not quite work as expected find the lowest cost offset from the candidates and extract the corresponding components from the data. returns none if length of offsetcandidates is 0. having any offset candidates that put any of query outside of data is currently not supported. data will have to be padded first if that is desired
 pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Position>,T:FnMut(&E,&X)->f32,X>(data:&View<E>,mut movecost:F,offsetcandidates:I,mut transformcost:T,query:&View<X>)->Option<(Tensor<E>,f32)> where E:Clone{
 	let mut qx=Position::new(0);
 	let mut sx=Vec::new();
@@ -47,12 +47,12 @@ pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Posit
 			let cost=query.get(qx.as_unsigned()).map(|q|transformcost(e,q)).unwrap_or(f32::INFINITY);
 			(ix, cost)
 		});
-		propagate_cost(&mut acc,|ix,jx|{
+		/*propagate_cost(&mut acc,|ix,jx|{
 			qx.clone_from(&ix);
 			qx-=&offset;
 
 			query.get(qx.as_unsigned()).map(|q|movecost(&jx,&ix)+transformcost(&data[jx],q)).unwrap_or(f32::INFINITY)
-		});
+		});*/
 
 		assert!(acc.slice(&sx),"{sx:?}");
 
