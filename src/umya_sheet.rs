@@ -60,7 +60,7 @@ impl CellPattern{
 			CellPattern::Anything=>0.0,
 			CellPattern::Bool(e)=>if let Ok(x)=s.parse::<bool>(){((e^x) as usize) as f32*boolscale}else{parsescale},
 			CellPattern::Boolean=>if let Ok(_x)=s.parse::<bool>(){0.0}else{parsescale},
-			CellPattern::Nothing=>parsescale,
+			CellPattern::Nothing=>if s.len()==0{0.0}else{parsescale},
 			CellPattern::Number(e)=>if let Ok(x)=s.parse::<f64>(){((e-x)*diffscale as f64) as f32}else{parsescale},
 			CellPattern::Numeric=>if let Ok(_x)=s.parse::<f64>(){0.0}else{parsescale},
 			CellPattern::Text(z)=>METRIC.get_or_init(Levenshtein::new).distance(s,z) as f32*levscale
