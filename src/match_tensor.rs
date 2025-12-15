@@ -83,7 +83,7 @@ pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Optio
 }
 /// fills holes in the data using data from the left. holes with no left non holes will remain
 pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isize,mut fill_hole:F,mut is_hole:G){
-	let data=data.swap_dims_mut(dim,-1);
+	let data=data.swap_dims_mut(dim,0);
 	let mut left=Position::new(0);
 
 	for ix in data.indices(){
