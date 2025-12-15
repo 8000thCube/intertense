@@ -352,6 +352,7 @@ impl<E> View<E>{
 
 		Some(unsafe{Self::from_raw_parts_mut(data,layout,views)})
 	}
+	#[track_caller]
 	/// remove a dim of size 1
 	pub fn squeeze_dim(&self,dim:isize)->&View<E>{
 		let dim=if let Some(d)=index::normalize_range_stop(self.rank(),dim){d}else{panic!("dim to unsqueeze did not fit in dims")};
@@ -362,6 +363,7 @@ impl<E> View<E>{
 		(layout.dims_mut().remove(dim),layout.strides_mut().remove(dim));
 		self.with_layout(layout)
 	}
+	#[track_caller]
 	/// swap dims
 	pub fn swap_dims(&self,a:isize,b:isize)->&View<E>{
 		let (a,b)=if let (Some(a),Some(b))=(index::normalize_index(self.dims().len(),a),index::normalize_index(self.dims().len(),b)){(a,b)}else{panic!("dims to swap did not fit in dims")};
@@ -372,6 +374,7 @@ impl<E> View<E>{
 
 		self.with_layout(layout)
 	}
+	#[track_caller]
 	/// swap dims
 	pub fn swap_dims_mut(&mut self,a:isize,b:isize)->&mut View<E>{
 		let (a,b)=if let (Some(a),Some(b))=(index::normalize_index(self.dims().len(),a),index::normalize_index(self.dims().len(),b)){(a,b)}else{panic!("dims to swap did not fit in dims")};
@@ -494,7 +497,7 @@ pub struct View<E>{								// TODO we could implement serial for this
 	data:*mut E,								// buffer or start pointer
 	layout:Arc<Layout>,							// arrangement of components, reference counted to avoid having to clone for iterators
 	stray:Option<(*mut E,usize,usize)>,			// if the data is not owned by another object, store the vec details here
-	views:*const ViewCache<E>					// hack to allow indexing to get a &View even when one doesn't preexist to reference
+	views:*const ViewCache<E>					// hack to allow indexing to get a &View even when one doesn't preexist to reference // TODO probably the better way to do this is have the data be *mut union<E,u8>, have the last 8 be a layout pointer and cache layouts since caching the entire view is cursed
 }
 unsafe impl<E:Send> Send for View<E>{}			// implement send/sync based on E rather than the arena because that holds a cache of pointers rather than the actual data
 unsafe impl<E:Sync> Sync for View<E>{}
