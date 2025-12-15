@@ -277,7 +277,7 @@ pub fn absorb_table(data:impl AsRef<View<String>>,boolscale:f32,diffscale:f32,di
 	let (datadims,patterndims)=(data.dims(),pattern.dims());
 	let mut stopposition=vec![0;datadims.len()];
 
-	datadims.iter().zip(patterndims.iter()).zip(stopposition.iter_mut()).for_each(|((d,p),s)|*s=d.checked_sub(*p).unwrap());
+	datadims.iter().zip(patterndims.iter()).zip(stopposition.iter_mut()).for_each(|((d,p),s)|*s=d.checked_sub(*p).unwrap()+1);
 	let offsetcandidates=GridIter::new(stopposition);
 
 	match_tensor::absorb_data(data,|p,q|match_tensor::euclidean(p,q)*distscale,offsetcandidates,|d,p|p.diff_lev_transform_cost(boolscale,diffscale,levscale,parsescale,d),pattern).unwrap()
