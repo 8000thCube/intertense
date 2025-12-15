@@ -1,11 +1,30 @@
+impl<E:Default,S:AsRef<Path>> LoadSheet<S> for IOResult<Tensor<E>> where Tensor<E>:for<'a> ReadSheet<&'a Spreadsheet>{
+	fn load_sheet(sheetpath:S)->Self{
+		let mut result=Ok(Default::default());
+
+		result.read_sheet(&mut [0,0,0],sheetpath.as_ref());
+		result
+	}
+}
 impl<E:Default,S:AsRef<Path>> LoadSheet<S> for Tensor<E> where Tensor<E>:for<'a> ReadSheet<&'a Path>{
-	fn load_sheet(sheetpath:S)->IOResult<Self>{Self::from_sheet(sheetpath.as_ref())}
+	fn load_sheet(sheetpath:S)->Self{Self::from_sheet(sheetpath.as_ref())}
 }
 impl<E:Default> From<Spreadsheet> for Tensor<E> where Tensor<E>:ReadSheet<Spreadsheet>{
 	fn from(sheet:Spreadsheet)->Tensor<E>{Self::from_sheet(sheet)}
 }
 impl<E:Default> From<Worksheet> for Tensor<E> where Tensor<E>:ReadSheet<Worksheet>{
 	fn from(sheet:Worksheet)->Tensor<E>{Self::from_sheet(sheet)}
+}
+impl<E:Default> ReadSheet<&Path> for IOResult<Tensor<E>> where Tensor<E>:for<'a> ReadSheet<&'a Spreadsheet>{
+	fn read_sheet(&mut self,indices:&mut [isize],sheet:&Path){
+		let x=match xlsx::read(sheet){Err(e)=>return *self=Err(IOError::new(IOErrorKind::Other,e)),Ok(x)=>x};
+		if let Ok(t)=self{return t.read_sheet(indices,&x)}
+
+		let mut t:Tensor<E>=Default::default();
+		t.read_sheet(indices,&x);
+
+		*self=Ok(t)
+	}
 }
 impl<E:Default> ReadSheet<&Path> for Tensor<E> where Tensor<E>:for<'a> ReadSheet<&'a Spreadsheet>{
 	fn read_sheet(&mut self,indices:&mut [isize],sheet:&Path){
@@ -141,7 +160,7 @@ mod tests{
 
 		let expected=vec![80.0,80.0,80.0,75.0,75.0,70.0,70.0,65.0,70.0,65.0];
 		let matrixfile="Matrix November 10th FINAL.xlsx";
-		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile).unwrap();
+		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile);
 
 		assert!(numbers[[0,0,0]].is_nan());
 		assert!(numbers[[0,0,1]].is_nan());
@@ -202,7 +221,7 @@ mod tests{
 			CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,CellPattern::Numeric,
 		];
 
-		let data:Tensor<String>=Tensor::load_sheet(matrixfile).unwrap();
+		let data:Tensor<String>=Tensor::load_sheet(matrixfile);
 		let mut pattern:Tensor<CellPattern>=Tensor::from(pattern);
 
 		assert!(pattern.reshape([17,5]));
@@ -215,8 +234,8 @@ mod tests{
 	#[test]
 	fn read_matrix(){
 		let matrixfile="Matrix November 10th FINAL.xlsx";
-		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile).unwrap();
-		let text:Tensor<String>=Tensor::load_sheet(matrixfile).unwrap();
+		let numbers:Tensor<f32>=Tensor::load_sheet(matrixfile);
+		let text:Tensor<String>=Tensor::load_sheet(matrixfile);
 
 		assert!(numbers[[0,0,0]].is_nan());
 		assert!(numbers[[0,0,1]].is_nan());
@@ -269,7 +288,7 @@ pub fn absorb_table_default(data:impl AsRef<View<String>>,pattern:impl AsRef<Vie
 /// provide function for loading spreadsheet to tensor by path refs
 pub trait LoadSheet<S>{
 	/// loads a tensor from the spreadsheet file
-	fn load_sheet(sheetpath:S)->IOResult<Self>;
+	fn load_sheet(sheetpath:S)->Self;
 }
 /// how to read the columns of a spreadsheet into a tensor
 pub trait ReadSheet<S>{
@@ -290,7 +309,9 @@ use crate::builtin_tensor::Tensor;
 use crate::{
 	builtin_tensor::{GridIter,View},match_tensor
 };
-use std::{io::Result as IOResult,path::Path};
+use std::{
+	io::{Error as IOError,ErrorKind as IOErrorKind,Result as IOResult},path::Path
+};
 #[cfg(feature="match-tensor")]
 use std::sync::OnceLock;
 use umya_spreadsheet::{Cell,Spreadsheet,Worksheet,reader::xlsx};
