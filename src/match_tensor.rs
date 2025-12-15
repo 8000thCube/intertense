@@ -89,9 +89,8 @@ pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isiz
 	for ix in data.indices(){
 		if is_hole(&data[&ix]){
 			if left.len()>0&&left[1..]==ix[1..]{data[&ix]=fill_hole(&data[&left])}
-		}else{
-			left.clone_from(&ix);
 		}
+		left.clone_from(&ix);
 	}
 }
 /// find the highest element less than x
