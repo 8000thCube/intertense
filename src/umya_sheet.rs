@@ -286,6 +286,8 @@ pub fn grab_table(data:impl AsRef<View<String>>,boolscale:f32,diffscale:f32,levs
 #[cfg(feature="match-tensor")]
 /// fuzzy finds a table based on the cell pattern
 pub fn grab_table_default(data:impl AsRef<View<String>>,pattern:impl AsRef<View<CellPattern>>)->(Tensor<String>,f32){grab_table(data,1.0,1.0,1.0,5.0,pattern)}
+/// excel style xmatch function TODO level 2 modes, faith checking, testing
+pub fn xmatch<E:Display+PartialOrd<E>+PartialOrd<X>,X:Display>(query:&X,values:&View<E>,mmode:i32,smode:i32)->Option<Position>{xmatch::xmatch(query,values,mmode,smode)}
 /// provide function for loading spreadsheet to tensor by path refs
 pub trait LoadSheet<S>{
 	/// loads a tensor from the spreadsheet file
@@ -305,13 +307,15 @@ pub trait ReadSheet<S>{
 }
 #[cfg(feature="match-tensor")]
 use b_k_tree::{metrics::Levenshtein,DiscreteMetric};
-use crate::builtin_tensor::Tensor;
+use crate::{
+	builtin_tensor::{Position,Tensor},xmatch
+};
 #[cfg(feature="match-tensor")]
 use crate::{
 	builtin_tensor::{GridIter,View},match_tensor
 };
 use std::{
-	io::{Error as IOError,ErrorKind as IOErrorKind,Result as IOResult},path::Path
+	fmt::Display,io::{Error as IOError,ErrorKind as IOErrorKind,Result as IOResult},path::Path
 };
 #[cfg(feature="match-tensor")]
 use std::sync::OnceLock;

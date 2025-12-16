@@ -79,26 +79,10 @@ pub fn absorb_data<E,F:FnMut(&Position,&Position)->f32,I:IntoIterator<Item=Posit
 	}
 	result.map(|(a,c)|(a.map(|(position,_cost)|data[position].clone()),c))
 }
-/// find the lowest element greater than x
-pub fn ceil<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{
-	let mut candidate=None;
-	for ix in e.indices(){
-		let e=&e[ix];
-		if e>x&&candidate.map(|c|c>e).unwrap_or(true){candidate=Some(e)}
-	}
-
-	candidate
-}
-/// find the lowest element greater than x
-pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
-	let mut candidate=None;
-	for ix in e.indices(){
-		let e=&e[&ix];
-		if e>x&&candidate.as_ref().map(|(c,_ix)|*c>e).unwrap_or(true){candidate=Some((e,ix))}
-	}
-
-	candidate
-}
+/// find the lowest element >= x
+pub fn ceil<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{xmatch::ceil(e,x)}
+/// find the lowest element >= x
+pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{xmatch::ceil_index(e,x)}
 /// fills holes in the data using data from the left. holes with no left non holes will remain
 pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isize,mut fill_hole:F,mut is_hole:G){
 	let data=data.swap_dims_mut(dim,-1);
@@ -112,26 +96,10 @@ pub fn fill_holes<E,F:FnMut(&E)->E,G:FnMut(&E)->bool>(data:&mut View<E>,dim:isiz
 		left.clone_from(&ix);
 	}
 }
-/// find the highest element less than x
-pub fn floor<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{
-	let mut candidate=None;
-	for ix in e.indices(){
-		let e=&e[ix];
-		if e<x&&candidate.map(|c|c<e).unwrap_or(true){candidate=Some(e)}
-	}
-
-	candidate
-}
-/// find the highest element less than x
-pub fn floor_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
-	let mut candidate=None;
-	for ix in e.indices(){
-		let e=&e[&ix];
-		if e<x&&candidate.as_ref().map(|(c,_ix)|*c<e).unwrap_or(true){candidate=Some((e,ix))}
-	}
-
-	candidate
-}
+/// find the highest element <= x
+pub fn floor<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{xmatch::floor(e,x)}
+/// find the highest element <= x
+pub fn floor_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{xmatch::floor_index(e,x)}
 /// grab lowest cost table with respect to the query from those inhabiting data slices from offsetcandidates with query dims. allowing the offset query to extend beyond the bounds of data is not supported; pad first if this is desired
 pub fn grab_table<'a,E,I:IntoIterator<Item=Position>,T:FnMut(&E,&X)->f32,X>(data:&'a View<E>,offsetcandidates:I,mut transform_cost:T,mut query:&View<X>)->Option<(&'a View<E>,f32)>{
 	assert!(data.rank()>=query.rank());
@@ -214,5 +182,9 @@ pub fn propagate_cost<F:FnMut(&Position,&Position)->f32>(acc:&mut View<(Position
 		}
 	}
 }
-use crate::builtin_tensor::{GridIter,Position,Tensor,View};
-use std::{cmp::PartialOrd,iter::FilterMap,ops::Range};
+/// excel style xmatch function TODO level 2 modes, faith checking, testing
+pub fn xmatch<E:Display+PartialOrd<E>+PartialOrd<X>,X:Display>(query:&X,values:&View<E>,mmode:i32,smode:i32)->Option<Position>{xmatch::xmatch(query,values,mmode,smode)}
+use crate::{
+	builtin_tensor::{GridIter,Position,Tensor,View},xmatch
+};
+use std::{cmp::PartialOrd,fmt::Display,iter::FilterMap,ops::Range};
