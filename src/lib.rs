@@ -1,3 +1,6 @@
+#[cfg(any(feature="match-tensor",feature="umya-sheet"))]
+/// functionality in common with excel and matching related features, named after the xmatch function
+mod xmatch;
 /// builtin tensor functionality
 pub mod builtin_tensor;
 #[cfg(feature="burn-ml")]
