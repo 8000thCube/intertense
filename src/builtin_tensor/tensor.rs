@@ -37,9 +37,14 @@ impl Layout{
 	/// computes the length of a slice required to store a tensor with this layout. the backing vec of a tensor will store the data in a slice of this length starting at index offset in a vec of at least offset+len
 	pub fn len(&self)->usize{
 		let (dims,strides)=(&self.dims,&self.strides);
+		let mut acc=1;
 
 		assert_eq!(dims.len(),strides.len());
-		dims.iter().zip(strides).map(|(&d,&s)|(d*s.abs() as usize).wrapping_sub(1)).max().unwrap_or(0).wrapping_add(1)
+		for (&d,&s) in dims.iter().zip(strides){
+			if d==0{return 0}
+			else{acc+=(d-1)*s.abs() as usize}
+		}
+		return acc;
 	}
 	/// creates a new layout ptr that can be used in constructing tensors from raw parts. Do not use the resulting pointer for anything else. Also note that not using it will leak memory. To avoid memory leak and undefined behavior when trying to drop an unused layout ptr, use Layout::drop_layout_ptr
 	pub fn new_layout_ptr(dims:Vec<usize>,strides:Vec<isize>)->*const Layout{
@@ -62,20 +67,19 @@ impl Layout{
 	}
 	/// checks if the layout is valid for storing data in a vector of the specified length (if the vec len is at least self.len, and the product of dims doesn't exceed isize::MAX). also returns false if components would be shared in a mutable case
 	pub fn is_valid_for(&self,mutable:bool,veclen:usize)->bool{
-		if mutable&&self.strides.contains(&0){return false}
+		let (dims,strides)=(&self.dims,&self.strides);
+		if dims.len()!=strides.len(){return false}
 
-		let limit=veclen;
-		let mut product:usize=1;
+		let saturatingcount=dims.iter().fold(1,|acc:usize,&d|acc.saturating_mul(d));
+		if saturatingcount==0{return true}else if saturatingcount>isize::MAX as usize{return false}
 
-		if self.dims.len()!=self.strides.len(){return false}
-		if self.dims.iter().zip(self.strides.iter()).any(|(&d,&s)|{
-			product=product.saturating_mul(d);
-			d.saturating_mul(s.abs() as usize)>limit||product>isize::MAX as usize
-		}){return false}
+		let saturatinglen=dims.iter().zip(strides.iter()).fold(1,|acc:usize,(&d,&s)|acc.saturating_add((d-1).saturating_mul(s.abs() as usize)));
+		if saturatinglen>isize::MAX as usize||saturatinglen>veclen{return false}
 
 		if mutable{													// TODO a better way probably exists
-			let (dims,strides)=(&self.dims,&self.strides);
 			for n in 0..dims.len(){									// overlaps can occur at common multiples between the strides. check if those occur within the axis lengths
+				if strides[n]==0{return false}
+
 				for k in 0..n{
 					let (d,e)=(dims[n],dims[k]);
 					let (s,z)=(strides[n].abs() as usize,strides[k].abs() as usize);
@@ -87,7 +91,6 @@ impl Layout{
 				}
 			}
 		}
-
 		true
 	}
 	/// creates a new tensor layout from the dimensions. their product should not exceed isize::MAX
@@ -276,8 +279,17 @@ impl<E> Tensor<E>{
 			self.data
 		}
 	}
+
+	/// flips the dims
+	pub fn flip(&mut self)->bool{
+		self.views=Default::default();
+		let layout=Arc::make_mut(&mut self.layout);
+
+		for stride in layout.strides_mut(){*stride*=-1}
+		true
+	}
 	/// flips the specified tensor dim
-	pub fn flip(&mut self,dim:isize)->bool{
+	pub fn flip_dim(&mut self,dim:isize)->bool{
 		self.views=Default::default();
 
 		let dim=if let Some(d)=index::normalize_range_stop(self.rank(),dim){d}else{return false};
@@ -475,7 +487,7 @@ impl<E> Tensor<E>{
 		return true
 	}
 	/// slices the tensor in place
-	pub fn slice(&mut self,ranges:&[Range<isize>])->bool{
+	pub fn slice(&mut self,ranges:&[Range<isize>])->bool{// TODO slice_dim, convenience/trait: x_in_place/with_x, lazy: xed, tensor/view: x/view_x
 		//assert!(self.is_layout_valid());
 		self.views=Default::default();
 
@@ -554,7 +566,8 @@ impl<E> Tensor<E>{
 	}
 	/// rereferences as a view
 	pub fn view(&self)->&View<E>{
-		assert!(self.is_layout_valid());
+		//assert!(self.is_layout_valid());
+		assert!(self.layout.is_valid_for(false,self.data.len()));	// TODO it's probably okay if someone makes a shared component layout only to take a shared view. document or undo before stabilizing.
 
 		let data=self.data_ptr();
 		let layout=self.layout_ptr();

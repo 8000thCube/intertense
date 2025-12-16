@@ -221,6 +221,13 @@ impl<E> View<E>{
 		);
 		mem
 	}
+	/// flips the view
+	pub fn flip(&self)->&View<E>{
+		let mut layout=self.layout().clone();
+
+		for stride in layout.strides_mut(){*stride*=-1}
+		self.with_layout(layout)
+	}
 	/*
 	/// creates a view from a slice						// TODO possible, but requires some cache awareness in the api to avoid memory leak
 	pub fn from_slice(data:&[E],layout:Layout)->&Self{
