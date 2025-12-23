@@ -32,6 +32,7 @@ impl<E> Default for ViewCache<E>{
 		ViewCache{
 			data:[UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit()),UnsafeCell::new(MaybeUninit::uninit())],
 			fill:Default::default(),
+			next:Mutex::new(None),
 			stray:false
 		}
 	}
@@ -54,11 +55,12 @@ impl<E> ViewCache<E>{
 	/// clears the view cache
 	pub (crate) fn clear(&mut self){
 		let data=&mut self.data;
-		let fill=&self.fill;
+		let fill=&mut self.fill;
 
 		for n in 0..fill.load(Ordering::Acquire) as usize{
 			unsafe{data[n].get().as_mut().unwrap_unchecked().assume_init_drop()}
 		}
+		fill.store(0,Ordering::Release);
 	}
 	/// checks if the layout is stray
 	pub (crate) fn is_stray(&self)->bool{self.stray}
@@ -69,8 +71,12 @@ impl<E> ViewCache<E>{
 		let n=fill.fetch_add(1,Ordering::AcqRel);					// hopfully this won't be long running enough to wrap around, but u64 is big enough that should take over a billion years so it's probably fine
 
 		if l<=n{
-			return unsafe{data[rand::random_range(0..l as usize)].get().as_mut().unwrap_unchecked().assume_init_mut().views.as_ref().unwrap_unchecked().alloc(view)}
-
+			return unsafe{
+				let mut next=self.next.lock().unwrap();
+				if next.is_none(){*next=Some(Default::default())}
+				let next=Option::as_ref(&*next).unwrap_unchecked();
+				if n%2==0{&next.0}else{&next.1}.alloc(view)
+			}
 		}
 		unsafe{
 			let v=data[n as usize].get().as_mut().unwrap_unchecked();
@@ -494,8 +500,9 @@ mod tests{
 }
 #[derive(Debug)]
 pub struct ViewCache<E>{
-	data:[UnsafeCell<MaybeUninit<View<E>>>;8],	// cache views here so they may be referenced. an array prevents soundness problems with shared mutable data in a vec and reduces allocation. use the views as a tree if the fill reaches the len
+	data:[UnsafeCell<MaybeUninit<View<E>>>;8],	// cache views here so they may be referenced. an array prevents soundness problems with shared mutable data in a vec and reduces allocation
 	fill:AtomicU64,								// store how full the cache is. increment atomically, don't worry about decrement because that will only be performed withe exclusive access
+	next:Mutex<Option<Box<(Self,Self)>>>,		// next segments if the cache fills
 	stray:bool									// strayness for this struct means the arc containing it will remain allocated without an associated tensor or view
 }
 #[derive(Debug)]
@@ -517,7 +524,7 @@ use std::{
 	panic::RefUnwindSafe,
 	slice,
 	sync::{
-		Arc,atomic::{AtomicU64,Ordering}
+		Arc,Mutex,atomic::{AtomicU64,Ordering}
 	}
 };
 use super::{GridIter,Layout,Position,Tensor,ViewIndex,index};
