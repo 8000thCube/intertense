@@ -58,6 +58,7 @@ impl<E> ViewCache<E>{
 		let fill=&mut self.fill;
 
 		for n in 0..fill.load(Ordering::Acquire) as usize{
+			if n>=data.len(){break}
 			unsafe{data[n].get().as_mut().unwrap_unchecked().assume_init_drop()}
 		}
 		fill.store(0,Ordering::Release);
