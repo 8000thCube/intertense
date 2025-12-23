@@ -129,6 +129,7 @@ impl<E:Clone> From<&View<E>> for Tensor<E>{
 impl<E:Default> Default for Tensor<E>{
 	fn default()->Self{E::default().into()}
 }
+impl<E:RefUnwindSafe> RefUnwindSafe for Tensor<E>{}
 impl<E,I:ViewIndex<Tensor<E>>> Index<I> for Tensor<E>{
 	fn index(&self,index:I)->&Self::Output{index.index(self)}
 	type Output=I::Output;
@@ -685,9 +686,11 @@ pub struct Tensor<E>{
 	#[cfg_attr(feature="serial",serde(skip))]
 	views:Arc<ViewCache<E>>					// hack to allow indexing to get a &View even when one doesn't preexist to reference
 }
+unsafe impl<E:Send> Send for Tensor<E>{}			// implement send/sync based on E rather than the arena because that holds a cache of pointers rather than the actual data
+unsafe impl<E:Sync> Sync for Tensor<E>{}
 #[cfg(feature="serial")]
 use serde::{Deserialize,Serialize};
 use std::{
-	borrow::{Borrow,BorrowMut},mem::{MaybeUninit,self},ops::{Deref,DerefMut,Index,IndexMut,Range},sync::Arc
+	borrow::{Borrow,BorrowMut},mem::{MaybeUninit,self},panic::RefUnwindSafe,ops::{Deref,DerefMut,Index,IndexMut,Range},sync::Arc
 };
 use super::{GridIter,Position,View,ViewCache,ViewIndex,index};
