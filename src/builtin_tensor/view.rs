@@ -76,7 +76,9 @@ impl<E> ViewCache<E>{
 				let mut next=self.next.lock().unwrap();
 				if next.is_none(){*next=Some(Default::default())}
 				let next=Option::as_ref(&*next).unwrap_unchecked();
-				if n%2==0{&next.0}else{&next.1}.alloc(view)
+				let n=(n as usize)%next.len();
+
+				next[n].alloc(view)
 			}
 		}
 		unsafe{
@@ -503,7 +505,7 @@ mod tests{
 pub struct ViewCache<E>{
 	data:[UnsafeCell<MaybeUninit<View<E>>>;8],	// cache views here so they may be referenced. an array prevents soundness problems with shared mutable data in a vec and reduces allocation
 	fill:AtomicU64,								// store how full the cache is. increment atomically, don't worry about decrement because that will only be performed withe exclusive access
-	next:Mutex<Option<Box<(Self,Self)>>>,		// next segments if the cache fills
+	next:Mutex<Option<Box<[Self;8]>>>,			// next segments if the cache fills
 	stray:bool									// strayness for this struct means the arc containing it will remain allocated without an associated tensor or view
 }
 #[derive(Debug)]

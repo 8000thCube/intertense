@@ -43,17 +43,14 @@ impl DoubleEndedIterator for GridIter{
 	fn next_back(&mut self)->Option<Self::Item>{
 		if self.start.is_none()&&self.stop.is_none(){			// we use this case to signal nothing left to iterate
 			None
-		}else if self.stop.is_none(){
-			self.stop=self.start.clone();
-			self.stop.clone().map(Position)
-		}else if self.start.is_none(){							// initial iteration with either start or stop not set: clone one into the other and return it early since we normally preincrement but no increment is required yet. next time they're equal will be time to stop
-			self.start=self.stop.clone();
-			self.start.clone().map(Position)
 		}else{													// increment start as a mixed radix number
+			if self.stop.is_none(){self.stop=self.start.clone()}else if self.start.is_none(){self.start=self.stop.clone()}
+
 			for (&d,n) in self.layout.dims().iter().zip(Arc::make_mut(self.stop.as_mut().unwrap())).rev(){
 				*n-=1;
 				if *n<0{*n=d as isize-1}else{break}
 			}
+
 			if self.start==self.stop{(self.start,self.stop)=(None,None)}
 			self.stop.clone().map(Position)						// if stop hasn't been reached yet, start is the current position. otherwise, the iteration is over and we set both start and stop to None
 		}
