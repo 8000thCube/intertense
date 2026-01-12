@@ -47,13 +47,18 @@ pub fn xmatch<E:Display+PartialOrd<E>+PartialOrd<X>,X:Display>(query:&X,values:&
 	for ix in (smode<0).then(||values.indices().rev()).into_iter().flat_map(|x|x).chain((smode>0).then(||values.indices()).into_iter().flat_map(|x|x)){
 		let e=&e[&ix];
 
-		if e<x&&mmode>0{continue}	// TODO use a match on the cmp ordering
-		if e==x{return Some(ix)}
-		if e>x&&mmode<0{continue}
+		match e.partial_cmp(x){
+			None=>continue,
+			Some(Ordering::Equal)=>return Some(ix),
+			Some(Ordering::Greater)=>if mmode<0{continue},
+			Some(Ordering::Less)=>if mmode>0{continue},
+		}
 
 		if candidate.as_ref().map(|(best,_index)|mmode>0&&*best>e||mmode<0&&*best<e).unwrap_or(true){candidate=Some((e,ix))}
 	}
 	return candidate.map(|(_e, ix)|ix);
 }
 use crate::builtin_tensor::{Position,View};
-use std::{cmp::PartialOrd,fmt::Display};
+use std::{
+	cmp::{Ordering,PartialOrd},fmt::Display
+};
