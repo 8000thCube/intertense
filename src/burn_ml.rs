@@ -90,5 +90,18 @@ impl<B:Backend,const N:usize> TryFrom<Tensor<B,N,Int>> for BuiltinTensor<u32>{
 	}
 	type Error=DataError;
 }
+#[cfg(feature="serial")]
+pub fn deserialize_tensor<'a,B:Backend,D:Deserializer<'a>,const N:usize>(deserializer:D)->Result<Tensor<B,N>,D::Error>{
+	let tensor:BuiltinTensor<f32>=BuiltinTensor::deserialize(deserializer)?;
+	tensor.try_into().map_err(|e|Derror::custom(format!("{e:?}")))
+}
+#[cfg(feature="serial")]
+pub fn serialize_tensor<B:Backend,S:Serializer,const N:usize>(tensor:&Tensor<B,N>,serializer:S)->Result<S::Ok,S::Error>{
+	let tensor:BuiltinTensor<f32>=tensor.clone().try_into().map_err(|e|Serror::custom(format!("{e:?}")))?;
+	tensor.serialize(serializer)
+}
 use burn::{prelude::*,tensor::DataError};
 use crate::builtin_tensor::{Layout,Tensor as BuiltinTensor};
+#[cfg(feature="serial")]
+use serde::{Deserialize,Deserializer,Serialize,Serializer,de::Error as Derror,ser::Error as Serror};
+
