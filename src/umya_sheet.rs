@@ -305,6 +305,8 @@ pub trait ReadSheet<S>{
 use b_k_tree::{metrics::Levenshtein,DiscreteMetric};
 #[cfg(feature="match-tensor")]
 use crate::builtin_tensor::GridIter;
+#[cfg(feature="match-tensor")]
+use crate::match_tensor;
 use crate::{
 	builtin_tensor::{Position,Tensor,View},xmatch
 };
