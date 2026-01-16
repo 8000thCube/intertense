@@ -1,4 +1,4 @@
-impl<E:Clone> From<&View<E>> for Arc<View<E>>{
+impl<E:Clone> From<&View<E>> for Arc<View<E>>{// TODO viewref to avoid potential cache problems. perhaps give view u8 ptr rather than E ptr and cast according to the generic and a bool
 	fn from(value:&View<E>)->Self{value.to_arc()}
 }
 impl<E:Clone> From<&View<E>> for Box<View<E>>{
@@ -237,19 +237,6 @@ impl<E> View<E>{
 		for stride in layout.strides_mut(){*stride*=-1}
 		self.with_layout(layout)
 	}
-	/*
-	/// creates a view from a slice						// TODO possible, but requires some cache awareness in the api to avoid memory leak
-	pub fn from_slice(data:&[E],layout:Layout)->&Self{
-		let len=data.len();
-
-		let data=data.as_ptr() as *mut E;
-
-		assert!(layout.is_valid_for(false,len));
-
-		let stray=Some((std::ptr::null(),len,len));
-		let views=ViewCache::new_cache_ptr();
-
-	}*/
 	/// references something by index
 	pub fn get<I:ViewIndex<Self>>(&self,index:I)->Option<&I::Output>{index.get(self)}
 	/// gets the component at the position. returns none if out of bounds
@@ -510,7 +497,7 @@ pub struct ViewCache<E>{
 }
 #[derive(Debug)]
 /// tensor reference type, similar to multidimensional [E]
-pub struct View<E>{								// TODO we could implement serial for this
+pub struct View<E>{								// TODO we could implement serial for this.
 	data:*mut E,								// buffer or start pointer
 	layout:Arc<Layout>,							// arrangement of components, reference counted to avoid having to clone for iterators
 	stray:Option<(*mut E,usize,usize)>,			// if the data is not owned by another object, store the vec details here

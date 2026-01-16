@@ -127,7 +127,7 @@ impl<E:Clone> From<&View<E>> for Tensor<E>{
 	fn from(value:&View<E>)->Self{value.to_tensor()}
 }
 impl<E:Default> Default for Tensor<E>{
-	fn default()->Self{E::default().into()}
+	fn default()->Self{vec![E::default()].into()}
 }
 impl<E:RefUnwindSafe> RefUnwindSafe for Tensor<E>{}
 impl<E,I:ViewIndex<Tensor<E>>> Index<I> for Tensor<E>{
@@ -162,9 +162,9 @@ impl<E> Deref for Tensor<E>{
 impl<E> DerefMut for Tensor<E>{
 	fn deref_mut(&mut self)->&mut Self::Target{self.view_mut()}
 }
-impl<E> From<E> for Tensor<E>{
+/*impl<E> From<E> for Tensor<E>{
 	fn from(value:E)->Self{Self::new(vec![value],Vec::new())}
-}
+}*/
 impl<E> From<Vec<E>> for Tensor<E>{
 	fn from(value:Vec<E>)->Self{
 		let dims=vec![value.len()];
@@ -308,6 +308,17 @@ impl<E> Tensor<E>{
 
 		layout.strides_mut().iter_mut().enumerate().for_each(|(n,s)|if axis!=n{*s*=-1});
 		true
+	}
+	/// creates a new tensor with the given dimensions, full of the same value
+	pub fn full<D:AsRef<[usize]>>(data:E,dims:D)->Self where E:Clone{
+		let layout=Arc::new(Layout::new(dims));
+		let mut buffer=Vec::new();
+		let views=Default::default();
+
+		buffer.resize(layout.len(),data);
+
+		let data=buffer;
+		Self{data,layout,views}
 	}
 	/// references something by index
 	pub fn get<I:ViewIndex<Self>>(&self,index:I)->Option<&I::Output>{index.get(self)}
@@ -686,7 +697,7 @@ pub struct Tensor<E>{
 	#[cfg_attr(feature="serial",serde(skip))]
 	views:Arc<ViewCache<E>>					// hack to allow indexing to get a &View even when one doesn't preexist to reference
 }
-unsafe impl<E:Send> Send for Tensor<E>{}			// implement send/sync based on E rather than the arena because that holds a cache of pointers rather than the actual data
+unsafe impl<E:Send> Send for Tensor<E>{}	// implement send/sync based on E rather than the arena because that holds a cache of pointers rather than the actual data
 unsafe impl<E:Sync> Sync for Tensor<E>{}
 #[cfg(feature="serial")]
 use serde::{Deserialize,Serialize};
