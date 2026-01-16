@@ -1,3 +1,4 @@
+#[cfg(feature="match-tensor")]
 /// find the lowest element >= than x
 pub fn ceil<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{// TODO we could return early if e==x
 	let mut candidate=None;
@@ -8,6 +9,7 @@ pub fn ceil<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a 
 
 	candidate
 }
+#[cfg(feature="match-tensor")]
 /// find the lowest element >= than x
 pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
 	let mut candidate=None;
@@ -18,6 +20,7 @@ pub fn ceil_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Optio
 
 	candidate
 }
+#[cfg(feature="match-tensor")]
 /// find the highest element <= x
 pub fn floor<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a E>{
 	let mut candidate=None;
@@ -28,6 +31,7 @@ pub fn floor<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<&'a
 
 	candidate
 }
+#[cfg(feature="match-tensor")]
 /// find the highest element <= x
 pub fn floor_index<'a,E:PartialOrd<E>+PartialOrd<X>,X>(e:&'a View<E>,x:&X)->Option<(&'a E,Position)>{
 	let mut candidate=None;

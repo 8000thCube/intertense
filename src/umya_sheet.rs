@@ -153,7 +153,6 @@ impl ReadSheet<&Worksheet> for Tensor<f64>{
 }
 #[cfg(test)]
 mod tests{
-	#[cfg(feature="match-tensor")]
 	#[test]
 	fn match_matrix(){
 		use crate::match_tensor;
@@ -177,7 +176,6 @@ mod tests{
 		assert_eq!(value.swap_dims(-1,-2).flat_vec(None),expected);
 		assert_eq!(cost,expected.into_iter().map(|e|(e-70.0).abs()).sum::<f32>());
 	}
-	#[cfg(feature="match-tensor")]
 	#[test]
 	fn find_table(){
 
@@ -246,9 +244,7 @@ mod tests{
 	}
 	use super::*;
 }
-#[cfg(feature="match-tensor")]
 #[derive(Clone,Debug,Default,PartialEq)]
-#[cfg(feature="match-tensor")]
 /// cell type usable for pattern matching
 pub enum CellPattern{
 	#[default]
@@ -307,12 +303,10 @@ pub trait ReadSheet<S>{
 }
 #[cfg(feature="match-tensor")]
 use b_k_tree::{metrics::Levenshtein,DiscreteMetric};
-use crate::{
-	builtin_tensor::{Position,Tensor},xmatch
-};
 #[cfg(feature="match-tensor")]
+use crate::builtin_tensor::GridIter;
 use crate::{
-	builtin_tensor::{GridIter,View},match_tensor
+	builtin_tensor::{Position,Tensor,View},xmatch
 };
 use std::{
 	fmt::Display,io::{Error as IOError,ErrorKind as IOErrorKind,Result as IOResult},path::Path
