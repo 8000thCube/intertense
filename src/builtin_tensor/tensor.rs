@@ -129,6 +129,23 @@ impl<E:Clone> From<&View<E>> for Tensor<E>{
 impl<E:Default> Default for Tensor<E>{
 	fn default()->Self{vec![E::default()].into()}
 }
+impl<E:Eq> Eq for Tensor<E>{}
+impl<E:PartialEq<F>,F> PartialEq<Tensor<F>> for Tensor<E>{
+	fn eq(&self,other:&Tensor<F>)->bool{
+		self.dims()==other.dims()&&self.indices().map(|i|(self.get(&*i),other.get(i))).all(|(a,b)|match (a,b){
+			(None,None)=>true,
+			(Some(a),Some(b))=>a==b,
+			_=>false
+		})
+	}
+	fn ne(&self,other:&Tensor<F>)->bool{
+		self.dims()!=other.dims()||self.indices().map(|i|(self.get(&*i),other.get(i))).any(|(a,b)|match (a,b){
+			(None,None)=>false,
+			(Some(a),Some(b))=>a!=b,
+			_=>true
+		})
+	}
+}
 impl<E:RefUnwindSafe> RefUnwindSafe for Tensor<E>{}
 impl<E,I:ViewIndex<Tensor<E>>> Index<I> for Tensor<E>{
 	fn index(&self,index:I)->&Self::Output{index.index(self)}
@@ -702,6 +719,6 @@ unsafe impl<E:Sync> Sync for Tensor<E>{}
 #[cfg(feature="serial")]
 use serde::{Deserialize,Serialize};
 use std::{
-	borrow::{Borrow,BorrowMut},mem::{MaybeUninit,self},panic::RefUnwindSafe,ops::{Deref,DerefMut,Index,IndexMut,Range},sync::Arc
+	borrow::{Borrow,BorrowMut},cmp::{Eq,PartialEq},mem::{MaybeUninit,self},panic::RefUnwindSafe,ops::{Deref,DerefMut,Index,IndexMut,Range},sync::Arc
 };
 use super::{GridIter,Position,View,ViewCache,ViewIndex,index};
